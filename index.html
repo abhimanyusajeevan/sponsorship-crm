@@ -417,7 +417,7 @@
                 </div>
               </div>
 
-              <!-- Contact actions: email / phone / linkedin -->
+              <!-- Contact actions: email / phone(s) / linkedin -->
               <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                 <template x-if="c.email">
                   <a :href="'mailto:' + c.email" class="text-sky-600 hover:underline flex items-center gap-1" :title="'Open mail to ' + c.email">
@@ -426,16 +426,30 @@
                     <span class="pill text-[9px]" :class="emailConfBadge(c.emailConf)" x-text="c.emailConf"></span>
                   </a>
                 </template>
-                <template x-if="c.phoneOffice && telLink(c.phoneOffice)">
-                  <a :href="'tel:' + telLink(c.phoneOffice)" class="text-emerald-700 hover:underline flex items-center gap-1" title="Office / desk line">
-                    <span>☎</span><span x-text="c.phoneOffice"></span>
+
+                <!-- phoneOffice: may contain N landlines/DIDs separated by ';' -->
+                <template x-for="(p, pi) in parsePhoneList(c.phoneOffice)" :key="'po' + pi">
+                  <a :href="'tel:' + telLink(p.number)"
+                     :class="isSwitchboard(p.number) ? 'text-amber-700' : 'text-emerald-700'"
+                     class="hover:underline flex items-center gap-1"
+                     :title="isSwitchboard(p.number) ? 'Switchboard — usually goes via reception' : 'Office / direct line'">
+                    <span x-text="isSwitchboard(p.number) ? '🏢' : '☎'"></span>
+                    <span x-text="p.number"></span>
+                    <span x-show="p.label" class="text-[9px] uppercase tracking-wide font-semibold px-1 rounded bg-white/70 border border-slate-200" x-text="p.label"></span>
                   </a>
                 </template>
-                <template x-if="c.phoneMobile && telLink(c.phoneMobile)">
-                  <a :href="'tel:' + telLink(c.phoneMobile)" class="text-emerald-700 font-medium hover:underline flex items-center gap-1" title="Mobile (click to call)">
-                    <span>📱</span><span x-text="c.phoneMobile"></span>
+
+                <!-- phoneMobile: may contain N mobile numbers separated by ';' -->
+                <template x-for="(p, pi) in parsePhoneList(c.phoneMobile)" :key="'pm' + pi">
+                  <a :href="'tel:' + telLink(p.number)"
+                     class="text-emerald-700 font-medium hover:underline flex items-center gap-1"
+                     title="Mobile (click to call)">
+                    <span>📱</span>
+                    <span x-text="p.number"></span>
+                    <span x-show="p.label" class="text-[9px] uppercase tracking-wide font-semibold px-1 rounded bg-white/70 border border-slate-200" x-text="p.label"></span>
                   </a>
                 </template>
+
                 <template x-if="c.linkedinUrl">
                   <a :href="linkedinUrl(c.linkedinUrl)" target="_blank" rel="noopener" class="text-blue-700 hover:underline flex items-center gap-1" title="Open LinkedIn profile">
                     <span>in</span><span>LinkedIn</span>

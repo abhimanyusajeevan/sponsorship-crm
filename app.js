@@ -219,12 +219,37 @@ function serialiseLeadNotes({ contacts, signals, freeform }) {
   return out.join("\n").trim();
 }
 
-// Helper: format Indian phone for tel: link (strip spaces/dashes)
+// Helper: format Indian phone for tel: link (strip spaces/dashes/parens/labels)
 function telLink(phone) {
   if (!phone) return null;
-  const clean = phone.replace(/[\s\-()]/g, "");
+  // Drop any "(label)" suffix first, then strip non-digit chars except leading +
+  const stripped = phone.replace(/\([^)]*\)/g, "").trim();
+  const clean = stripped.replace(/[\s\-()]/g, "");
   if (!clean) return null;
   return clean.startsWith("+") ? clean : "+91" + clean;
+}
+
+// Helper: parse a phone field that may contain MULTIPLE numbers
+// Format: "+91 22 1234 5678 (sw); +91 22 1234 5701 (DID); +91 99876 54321 (mobile direct)"
+// Each segment is split on ";" and may have an optional "(label)" suffix.
+function parsePhoneList(field) {
+  if (!field || typeof field !== "string") return [];
+  return field
+    .split(/;\s*/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => {
+      const m = p.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+      if (m) return { number: m[1].trim(), label: m[2].trim() };
+      return { number: p, label: "" };
+    });
+}
+
+// Heuristic: is this number an Indian metro switchboard (Mumbai 22 / Delhi 11)?
+function isSwitchboard(number) {
+  if (!number) return false;
+  const n = number.replace(/[\s\-()]/g, "");
+  return /^(\+?91|0)?(22|11)\d{6,}$/.test(n);
 }
 
 // Helper: format LinkedIn URL (ensure protocol)
@@ -495,6 +520,8 @@ function crmApp() {
 
     telLink(p) { return telLink(p); },
     linkedinUrl(u) { return linkedinUrl(u); },
+    parsePhoneList(f) { return parsePhoneList(f); },
+    isSwitchboard(n) { return isSwitchboard(n); },
 
     // ====== email draft modal ======
     openDraft(contact) {
