@@ -271,6 +271,9 @@ function crmApp() {
     pipelineStatuses: STATUS_ORDER,
     charts: {},
 
+    // Explicit-submit state
+    originalLead: null,             // snapshot taken on openLead — used to detect dirty
+
     // Email-draft modal state
     draftOpen: false,
     draftContact: null,
@@ -564,18 +567,34 @@ function crmApp() {
       if (lead.status === "NOT STARTED") lead.status = "1ST TOUCH";
       lead.touches = Math.min(9, (+lead.touches || 0) + 1);
       lead.lastTouch = new Date().toISOString().slice(0, 10);
-      this.saveLead();
+      // Commit everything currently dirty (including these touch updates) in one shot
+      this.submitLead();
       this.closeDraft();
     },
 
-    // ====== open / edit / save ======
+    // ====== open / edit / submit ======
     openLead(lead) {
       this.selectedLead = lead;
+      this.originalLead = JSON.parse(JSON.stringify(lead));  // snapshot for dirty diff
       this.saveStatus = "idle";
+      this.lastError = "";
     },
 
     closeLead() {
+      if (this.isDirty) {
+        const ok = confirm("You have unsaved changes. Discard and close?");
+        if (!ok) return;
+        // Roll back: copy snapshot fields back onto the lead reference
+        Object.assign(this.selectedLead, this.originalLead);
+      }
       this.selectedLead = null;
+      this.originalLead = null;
+      this.saveStatus = "idle";
+    },
+
+    get isDirty() {
+      if (!this.selectedLead || !this.originalLead) return false;
+      return JSON.stringify(this.selectedLead) !== JSON.stringify(this.originalLead);
     },
 
     recomputeScore() {
@@ -583,6 +602,7 @@ function crmApp() {
       const a = +this.selectedLead.alignment || 0;
       const c = +this.selectedLead.capacity || 0;
       this.selectedLead.score = a + c;
+      // No save — wait for Submit
     },
 
     markTouch() {
@@ -591,9 +611,8 @@ function crmApp() {
       if (cur >= 9) return;
       this.selectedLead.touches = cur + 1;
       this.selectedLead.lastTouch = new Date().toISOString().slice(0, 10);
-      // If status is NOT STARTED, advance to 1ST TOUCH
       if (this.selectedLead.status === "NOT STARTED") this.selectedLead.status = "1ST TOUCH";
-      this.saveLead();
+      // No save — wait for Submit
     },
 
     setNextAction(daysFromToday) {
@@ -601,40 +620,49 @@ function crmApp() {
       const d = new Date();
       d.setDate(d.getDate() + daysFromToday);
       this.selectedLead.nextAction = d.toISOString().slice(0, 10);
-      this.saveLead();
+      // No save — wait for Submit
     },
 
-    async saveLead() {
+    // Explicit submit — pushes every change made since openLead in one POST
+    async submitLead() {
       if (!this.selectedLead) return;
+      if (!this.isDirty) {
+        this.saveStatus = "saved";
+        setTimeout(() => { this.saveStatus = "idle"; }, 1500);
+        return;
+      }
       const cfg = window.CRM_CONFIG || {};
 
-      // Debounce
-      clearTimeout(this.saveTimer);
-      this.saveTimer = setTimeout(async () => {
-        if (this.backendMode !== "live") {
-          this.saveStatus = "saved";  // local edits only
-          this.$nextTick(() => this.renderCharts());
-          return;
-        }
-        this.saveStatus = "saving";
-        try {
-          const body = new URLSearchParams();
-          body.set("action", "update");
-          body.set("token", cfg.apiToken);
-          body.set("lead", JSON.stringify(this.selectedLead));
-          const res = await fetch(cfg.apiUrl, { method: "POST", body });
-          const data = await res.json();
-          if (!data.ok) throw new Error(data.error || "Update failed");
-          this.saveStatus = "saved";
-          // Re-render charts if dashboard is open
-          if (this.activeTab === "dashboard") this.renderCharts();
-        } catch (e) {
-          console.error(e);
-          this.lastError = String(e);
-          this.saveStatus = "error";
-        }
-      }, 400);
+      if (this.backendMode !== "live") {
+        // Read-only mode — local edits only
+        this.originalLead = JSON.parse(JSON.stringify(this.selectedLead));
+        this.saveStatus = "saved";
+        if (this.activeTab === "dashboard") this.renderCharts();
+        return;
+      }
+
+      this.saveStatus = "saving";
+      try {
+        const body = new URLSearchParams();
+        body.set("action", "update");
+        body.set("token", cfg.apiToken);
+        body.set("lead", JSON.stringify(this.selectedLead));
+        const res = await fetch(cfg.apiUrl, { method: "POST", body });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Update failed");
+        this.saveStatus = "saved";
+        // Sync snapshot so dirty flips back to false
+        this.originalLead = JSON.parse(JSON.stringify(this.selectedLead));
+        if (this.activeTab === "dashboard") this.renderCharts();
+      } catch (e) {
+        console.error(e);
+        this.lastError = String(e);
+        this.saveStatus = "error";
+      }
     },
+
+    // Back-compat alias — older buttons may still call saveLead()
+    async saveLead() { return this.submitLead(); },
 
     // ====== formatting helpers ======
     tierColor(t) {

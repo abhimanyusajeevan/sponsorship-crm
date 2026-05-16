@@ -305,7 +305,7 @@
       <div class="grid grid-cols-3 gap-3">
         <div>
           <label class="text-xs font-medium text-slate-500">Status</label>
-          <select x-model="selectedLead.status" @change="saveLead()" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
+          <select x-model="selectedLead.status" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
             <template x-for="s in statusOptions" :key="s">
               <option x-text="s"></option>
             </template>
@@ -313,13 +313,13 @@
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Response</label>
-          <select x-model="selectedLead.response" @change="saveLead()" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
+          <select x-model="selectedLead.response" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
             <option>PENDING</option><option>Y</option><option>N</option><option>GHOSTED</option>
           </select>
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Priority</label>
-          <select x-model="selectedLead.priority" @change="saveLead()" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
+          <select x-model="selectedLead.priority" class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300">
             <option>P0</option><option>P1</option><option>P2</option><option>P3</option><option>P4</option>
           </select>
         </div>
@@ -329,12 +329,12 @@
       <div class="grid grid-cols-3 gap-3">
         <div>
           <label class="text-xs font-medium text-slate-500">Alignment (1-5)</label>
-          <input type="number" min="1" max="5" x-model.number="selectedLead.alignment" @change="recomputeScore(); saveLead()"
+          <input type="number" min="1" max="5" x-model.number="selectedLead.alignment" @input="recomputeScore()"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Capacity (1-5)</label>
-          <input type="number" min="1" max="5" x-model.number="selectedLead.capacity" @change="recomputeScore(); saveLead()"
+          <input type="number" min="1" max="5" x-model.number="selectedLead.capacity" @input="recomputeScore()"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
@@ -348,22 +348,22 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs font-medium text-slate-500">Last Touch Date</label>
-          <input type="date" x-model="selectedLead.lastTouch" @change="saveLead()"
+          <input type="date" x-model="selectedLead.lastTouch"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Next Action Date</label>
-          <input type="date" x-model="selectedLead.nextAction" @change="saveLead()"
+          <input type="date" x-model="selectedLead.nextAction"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Touches Sent (0-9)</label>
-          <input type="number" min="0" max="9" x-model.number="selectedLead.touches" @change="saveLead()"
+          <input type="number" min="0" max="9" x-model.number="selectedLead.touches"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
           <label class="text-xs font-medium text-slate-500">Owner</label>
-          <input type="text" x-model="selectedLead.owner" @change="saveLead()"
+          <input type="text" x-model="selectedLead.owner"
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
       </div>
@@ -473,22 +473,50 @@
         <label class="text-xs font-medium text-slate-500">
           Raw notes (edit here to add/remove contacts or signals)
         </label>
-        <textarea x-model="selectedLead.notes" @change="saveLead()" rows="6"
+        <textarea x-model="selectedLead.notes" rows="6"
                   placeholder="Paste enriched contacts as:&#10;=== CONTACTS ===&#10;Name | Role | email | verified | +91 office | +91 mobile | linkedin.com/in/... | one-line note&#10;&#10;## Notes:&#10;Your free-form notes here"
                   class="w-full mt-1 px-3 py-2 text-xs font-mono rounded-md border border-slate-300"></textarea>
       </div>
 
-      <!-- Footer save indicator -->
-      <div class="flex items-center justify-between pt-3 border-t">
-        <div class="text-xs">
-          <span x-show="saveStatus === 'idle'" class="text-slate-400">All changes saved automatically</span>
-          <span x-show="saveStatus === 'saving'" class="text-amber-600">Saving…</span>
-          <span x-show="saveStatus === 'saved'" class="text-emerald-600">✓ Saved</span>
-          <span x-show="saveStatus === 'error'" class="text-red-600">⚠ Error: <span x-text="lastError"></span></span>
-        </div>
-        <button @click="closeLead()" class="px-4 py-1.5 bg-slate-900 text-white text-sm rounded-md">Close</button>
+    </div>
+    </template>
+
+    <!-- Sticky Submit footer — stays pinned at the bottom of the drawer -->
+    <template x-if="selectedLead">
+    <div class="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-[0_-4px_8px_-4px_rgba(0,0,0,0.08)]">
+      <!-- Status badge -->
+      <div class="text-xs flex items-center gap-1">
+        <template x-if="!isDirty && saveStatus === 'idle'">
+          <span class="text-slate-400">● No changes</span>
+        </template>
+        <template x-if="isDirty && saveStatus === 'idle'">
+          <span class="text-amber-600 font-medium">● Unsaved changes</span>
+        </template>
+        <template x-if="saveStatus === 'saving'">
+          <span class="text-sky-600">● Saving…</span>
+        </template>
+        <template x-if="saveStatus === 'saved' && !isDirty">
+          <span class="text-emerald-600">✓ Saved to sheet</span>
+        </template>
+        <template x-if="saveStatus === 'error'">
+          <span class="text-red-600">⚠ Error: <span x-text="lastError"></span></span>
+        </template>
       </div>
 
+      <div class="ml-auto flex items-center gap-2">
+        <button @click="closeLead()" class="px-4 py-2 text-sm rounded-md text-slate-700 hover:bg-slate-100">
+          Cancel
+        </button>
+        <button @click="submitLead()"
+                :disabled="!isDirty || saveStatus === 'saving'"
+                :class="(!isDirty || saveStatus === 'saving') ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'"
+                class="px-6 py-2 text-sm rounded-md font-semibold transition flex items-center gap-2">
+          <svg x-show="saveStatus === 'saving'" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span x-show="saveStatus === 'saving'">Submitting…</span>
+          <span x-show="saveStatus !== 'saving' && isDirty">Submit changes</span>
+          <span x-show="saveStatus !== 'saving' && !isDirty">Nothing to submit</span>
+        </button>
+      </div>
     </div>
     </template>
   </div>
