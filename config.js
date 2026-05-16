@@ -14,4 +14,14 @@ window.CRM_CONFIG = {
     phone: "+91 [your phone]",       // <-- update this once and it auto-fills every draft
     linkedin: "[your-handle]",       // <-- the bit after linkedin.com/in/
   },
+
+  // Team — who can be tagged on a touch. Edit `name` if needed; the rest follows.
+  team: [
+    { id: "AS", name: "Abhimanyu", initials: "AS", color: "blue",
+      role: "Driver — primary outreach to anchor sponsors" },
+    { id: "VS", name: "Vijay",     initials: "VS", color: "emerald",
+      role: "Co-driver + marketing — owns LinkedIn DMs + brand-side conversations" },
+    { id: "MJ", name: "Mathew",    initials: "MJ", color: "purple",
+      role: "Cold-call lead — handles outbound phone touches" },
+  ],
 };

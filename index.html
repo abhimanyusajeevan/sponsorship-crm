@@ -93,6 +93,13 @@
             <span class="pill" :class="tierColor(item.lead.tier)" x-text="item.lead.tier"></span>
             <span class="pill" :class="statusColor(item.lead.status)" x-text="item.lead.status"></span>
             <span class="pill bg-amber-50 text-amber-700">Touch <span x-text="item.lead.touches"></span>/9</span>
+            <template x-for="member in teamMembers" :key="member.id">
+              <template x-if="touchCountsFor(item.lead)[member.name] > 0">
+                <span class="pill" :class="memberColorClasses(member, 'pill')">
+                  <span class="font-bold" x-text="member.initials"></span>×<span x-text="touchCountsFor(item.lead)[member.name]"></span>
+                </span>
+              </template>
+            </template>
           </div>
 
           <!-- WHY this lead is on the queue -->
@@ -148,9 +155,16 @@
                   <div class="text-xs font-bold text-sky-600 ml-1" x-text="lead.score"></div>
                 </div>
                 <div class="text-[11px] text-slate-500 truncate" x-text="lead.contactTitle"></div>
-                <div class="mt-1.5 flex gap-1">
+                <div class="mt-1.5 flex gap-1 flex-wrap">
                   <span class="pill text-[9px]" :class="tierColor(lead.tier)" x-text="lead.tier"></span>
                   <span class="pill text-[9px] bg-slate-100" x-text="lead.priority"></span>
+                  <template x-for="member in teamMembers" :key="member.id">
+                    <template x-if="touchCountsFor(lead)[member.name] > 0">
+                      <span class="pill text-[9px]" :class="memberColorClasses(member, 'pill')">
+                        <span class="font-bold" x-text="member.initials"></span>×<span x-text="touchCountsFor(lead)[member.name]"></span>
+                      </span>
+                    </template>
+                  </template>
                 </div>
               </div>
             </template>
@@ -250,7 +264,19 @@
                 <td class="px-3 py-2">
                   <span class="pill" :class="statusColor(lead.status)" x-text="lead.status"></span>
                 </td>
-                <td class="px-3 py-2 text-center" x-text="lead.touches + '/9'"></td>
+                <td class="px-3 py-2 text-center">
+                  <div class="flex items-center justify-center gap-1">
+                    <span x-text="lead.touches + '/9'"></span>
+                    <template x-for="member in teamMembers" :key="member.id">
+                      <template x-if="touchCountsFor(lead)[member.name] > 0">
+                        <span class="pill text-[9px]" :class="memberColorClasses(member, 'pill')"
+                              :title="member.name + ': ' + touchCountsFor(lead)[member.name] + ' touches'">
+                          <span class="font-bold" x-text="member.initials"></span>
+                        </span>
+                      </template>
+                    </template>
+                  </div>
+                </td>
                 <td class="px-3 py-2 text-xs" x-text="formatDate(lead.nextAction)"></td>
                 <td class="px-3 py-2 text-xs text-slate-600 truncate max-w-xs" x-text="lead.notes"></td>
               </tr>
@@ -322,14 +348,48 @@
         </button>
       </div>
 
-      <!-- Quick actions -->
-      <div class="flex flex-wrap gap-2">
-        <button @click="markTouch()" class="px-3 py-1.5 bg-sky-600 text-white text-sm rounded-md hover:bg-sky-700">
-          + Touch <span x-text="selectedLead.touches"></span> → <span x-text="selectedLead.touches + 1"></span>
-        </button>
-        <button @click="setNextAction(1)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 1 day</button>
-        <button @click="setNextAction(3)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 3 days</button>
-        <button @click="setNextAction(7)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 7 days</button>
+      <!-- Quick actions — log a touch by team member -->
+      <div class="space-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold text-slate-600 uppercase tracking-wide mr-1">
+            Log touch by:
+          </span>
+          <template x-for="member in teamMembers" :key="member.id">
+            <button @click="addTouch(member.id)"
+                    :class="memberColorClasses(member, 'button')"
+                    :title="member.role + ' — increments touches, stamps today, advances status'"
+                    class="px-3 py-1.5 text-sm rounded-md font-medium flex items-center gap-1">
+              <span class="font-bold" x-text="'+' + member.initials"></span>
+              <span class="text-xs opacity-90" x-text="member.name"></span>
+            </button>
+          </template>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span class="text-xs font-semibold text-slate-600 uppercase tracking-wide mr-1 self-center">
+            Next action:
+          </span>
+          <button @click="setNextAction(1)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 1 day</button>
+          <button @click="setNextAction(3)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 3 days</button>
+          <button @click="setNextAction(7)" class="px-3 py-1.5 bg-slate-200 text-sm rounded-md hover:bg-slate-300">+ 7 days</button>
+        </div>
+
+        <!-- Per-person touch summary -->
+        <div x-show="parsedNotes.touches.length > 0" class="flex flex-wrap items-center gap-1 text-xs">
+          <span class="text-slate-500 mr-1">Touched:</span>
+          <template x-for="member in teamMembers" :key="member.id">
+            <template x-if="touchCountsFor(selectedLead)[member.name] > 0">
+              <span class="pill" :class="memberColorClasses(member, 'pill')">
+                <span class="font-bold" x-text="member.initials"></span>
+                <span>×</span>
+                <span x-text="touchCountsFor(selectedLead)[member.name]"></span>
+              </span>
+            </template>
+          </template>
+          <span class="text-slate-400">·</span>
+          <span class="text-slate-600 font-medium">
+            <span x-text="selectedLead.touches"></span>/9 total
+          </span>
+        </div>
       </div>
 
       <!-- Tier/Priority/Status -->
@@ -492,6 +552,35 @@
             </div>
           </template>
         </div>
+      </div>
+
+      <!-- ===== TOUCH LOG (parsed from notes === TOUCHES === block) ===== -->
+      <div x-show="parsedNotes.touches.length > 0">
+        <label class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+          Touch Log <span x-text="'(' + parsedNotes.touches.length + ')'" class="text-slate-400"></span>
+        </label>
+        <ul class="mt-1 space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
+          <template x-for="(t, ti) in parsedNotes.touches.slice().reverse()" :key="ti">
+            <li class="text-xs flex items-start gap-2 py-1 px-2 rounded border border-slate-200 bg-white">
+              <span class="font-mono text-[10px] flex-shrink-0 text-slate-500" x-text="t.date || '—'"></span>
+              <template x-if="memberByName(t.person)">
+                <span class="pill text-[10px]" :class="memberColorClasses(memberByName(t.person), 'pill')">
+                  <span class="font-bold" x-text="memberByName(t.person).initials"></span>
+                </span>
+              </template>
+              <template x-if="!memberByName(t.person)">
+                <span class="pill text-[10px] bg-slate-100 text-slate-600" x-text="t.person"></span>
+              </template>
+              <template x-if="t.channel">
+                <span class="text-[10px] text-slate-600 px-1.5 rounded bg-slate-100 flex-shrink-0" x-text="t.channel"></span>
+              </template>
+              <span class="flex-1 text-slate-700" x-text="t.note"></span>
+              <button @click="removeTouch(parsedNotes.touches.length - 1 - ti)"
+                      title="Remove this touch (undo)"
+                      class="text-slate-300 hover:text-red-600 flex-shrink-0">×</button>
+            </li>
+          </template>
+        </ul>
       </div>
 
       <!-- ===== INTENT SIGNALS (parsed from notes) ===== -->

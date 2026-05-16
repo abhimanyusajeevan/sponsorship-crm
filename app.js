@@ -111,30 +111,26 @@ IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
 
 // ============================================================
 // Notes-field parser
-// Recognises blocks demarcated by "=== CONTACTS ===" and "=== SIGNALS ==="
+// Recognises blocks: "=== CONTACTS ===", "=== TOUCHES ===", "=== SIGNALS ==="
 // and any "## Notes:" tail as free-form.
 // ============================================================
 function parseLeadNotes(raw) {
-  const result = { contacts: [], signals: [], freeform: "" };
+  const result = { contacts: [], touches: [], signals: [], freeform: "" };
   if (!raw || typeof raw !== "string") {
     if (raw) result.freeform = String(raw);
     return result;
   }
 
   // Split by section markers
-  const blocks = raw.split(/(?=^===\s*(?:CONTACTS|SIGNALS)\s*===\s*$|^##\s*Notes:?\s*$)/m);
+  const blocks = raw.split(/(?=^===\s*(?:CONTACTS|TOUCHES|SIGNALS)\s*===\s*$|^##\s*Notes:?\s*$)/m);
 
   for (const block of blocks) {
-    const m = block.match(/^===\s*CONTACTS\s*===\s*$/m);
-    if (m) {
+    if (/^===\s*CONTACTS\s*===\s*$/m.test(block)) {
       const body = block.replace(/^===\s*CONTACTS\s*===\s*$/m, "").trim();
       for (const line of body.split("\n")) {
         const ln = line.trim();
         if (!ln || ln.startsWith("===") || ln.startsWith("##")) break;
-        if (ln.startsWith("NO_DATA")) {
-          result.contacts.noData = ln;
-          continue;
-        }
+        if (ln.startsWith("NO_DATA")) { result.contacts.noData = ln; continue; }
         const parts = ln.split("|").map(p => p.trim());
         if (parts.length < 4) continue;
         const [name, role, email, emailConf, phoneOffice, phoneMobile, linkedinUrl, note] = parts;
@@ -152,12 +148,30 @@ function parseLeadNotes(raw) {
       continue;
     }
 
+    if (/^===\s*TOUCHES\s*===\s*$/m.test(block)) {
+      const body = block.replace(/^===\s*TOUCHES\s*===\s*$/m, "").trim();
+      for (const line of body.split("\n")) {
+        const ln = line.trim();
+        if (!ln || ln.startsWith("===") || ln.startsWith("##")) break;
+        const parts = ln.split("|").map(p => p.trim());
+        if (parts.length < 2) continue;
+        const [date, person, channel, note] = parts;
+        result.touches.push({
+          date: date || "",
+          person: person || "",
+          channel: channel || "",
+          note: note || "",
+        });
+      }
+      continue;
+    }
+
     if (/^===\s*SIGNALS\s*===\s*$/m.test(block)) {
       const body = block.replace(/^===\s*SIGNALS\s*===\s*$/m, "").trim();
       for (const line of body.split("\n")) {
         const ln = line.trim();
         if (!ln || ln.startsWith("===") || ln.startsWith("##")) break;
-        // Expected format: [YYYY-MM-DD] HEAT: text — source: url
+        // Format: [YYYY-MM-DD] HEAT: text — source: url
         const m1 = ln.match(/^\[(\d{4}-\d{2}-\d{2})\]\s*(HOT|WARM|COLD)[:\-]?\s*(.+?)(?:\s+(?:—|–|-|source:?)\s*(https?:\/\/\S+))?$/i);
         if (m1) {
           result.signals.push({
@@ -179,7 +193,8 @@ function parseLeadNotes(raw) {
     }
 
     // Unclassified block before any marker — treat as free-form notes
-    if (!result.contacts.length && !result.signals.length && !result.freeform) {
+    if (!result.contacts.length && !result.signals.length
+        && !result.touches.length && !result.freeform) {
       result.freeform = block.trim();
     }
   }
@@ -187,8 +202,8 @@ function parseLeadNotes(raw) {
   return result;
 }
 
-// Serialise back to the structured notes format
-function serialiseLeadNotes({ contacts, signals, freeform }) {
+// Serialise back to structured notes
+function serialiseLeadNotes({ contacts, touches, signals, freeform }) {
   const out = [];
   if (contacts && contacts.length) {
     out.push("=== CONTACTS ===");
@@ -197,6 +212,15 @@ function serialiseLeadNotes({ contacts, signals, freeform }) {
         c.name, c.role, c.email, c.emailConf,
         c.phoneOffice, c.phoneMobile, c.linkedinUrl, c.note,
       ].map(v => String(v ?? "").replace(/\|/g, "/").replace(/\n/g, " ")).join(" | "));
+    }
+    out.push("");
+  }
+  if (touches && touches.length) {
+    out.push("=== TOUCHES ===");
+    for (const t of touches) {
+      out.push([t.date, t.person, t.channel, t.note]
+        .map(v => String(v ?? "").replace(/\|/g, "/").replace(/\n/g, " "))
+        .join(" | "));
     }
     out.push("");
   }
@@ -217,6 +241,48 @@ function serialiseLeadNotes({ contacts, signals, freeform }) {
     out.push(freeform.trim());
   }
   return out.join("\n").trim();
+}
+
+// ============================================================
+// Team / touch helpers
+// ============================================================
+function teamConfig() {
+  return (window.CRM_CONFIG && window.CRM_CONFIG.team) || [];
+}
+
+function memberByName(name) {
+  return teamConfig().find(m => m.name === name) || null;
+}
+
+function memberById(id) {
+  return teamConfig().find(m => m.id === id) || null;
+}
+
+function memberColorClasses(member, variant) {
+  // Returns Tailwind classes for the given member's brand colour
+  if (!member) return variant === "button"
+    ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+    : "bg-slate-100 text-slate-700";
+  const c = member.color || "slate";
+  const map = {
+    blue:    { pill: "bg-blue-100 text-blue-800",       button: "bg-blue-600 text-white hover:bg-blue-700" },
+    emerald: { pill: "bg-emerald-100 text-emerald-800", button: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    purple:  { pill: "bg-purple-100 text-purple-800",   button: "bg-purple-600 text-white hover:bg-purple-700" },
+    amber:   { pill: "bg-amber-100 text-amber-800",     button: "bg-amber-600 text-white hover:bg-amber-700" },
+    rose:    { pill: "bg-rose-100 text-rose-800",       button: "bg-rose-600 text-white hover:bg-rose-700" },
+    slate:   { pill: "bg-slate-100 text-slate-700",     button: "bg-slate-200 text-slate-700 hover:bg-slate-300" },
+  };
+  return (map[c] || map.slate)[variant] || (map.slate)[variant];
+}
+
+function touchCountsFor(lead) {
+  const parsed = parseLeadNotes(lead && lead.notes || "");
+  const counts = {};
+  for (const t of (parsed.touches || [])) {
+    if (!t.person) continue;
+    counts[t.person] = (counts[t.person] || 0) + 1;
+  }
+  return counts;
 }
 
 // Helper: format Indian phone for tel: link (strip spaces/dashes/parens/labels)
@@ -665,14 +731,62 @@ function crmApp() {
       // No save — wait for Submit
     },
 
-    markTouch() {
+    // Team accessors for templates
+    get teamMembers() { return teamConfig(); },
+    memberColorClasses(member, variant) { return memberColorClasses(member, variant); },
+    memberByName(name) { return memberByName(name); },
+    memberById(id) { return memberById(id); },
+    touchCountsFor(lead) { return touchCountsFor(lead); },
+
+    // Log a touch by a specific team member.
+    // - bumps touches counter
+    // - sets lastTouch = today
+    // - advances NOT STARTED → 1ST TOUCH
+    // - appends an entry to the === TOUCHES === block in notes
+    addTouch(personId, channel, note) {
       if (!this.selectedLead) return;
-      const cur = +this.selectedLead.touches || 0;
-      if (cur >= 9) return;
-      this.selectedLead.touches = cur + 1;
-      this.selectedLead.lastTouch = new Date().toISOString().slice(0, 10);
-      if (this.selectedLead.status === "NOT STARTED") this.selectedLead.status = "1ST TOUCH";
+      const lead = this.selectedLead;
+      const member = memberById(personId);
+      if (!member) {
+        console.warn("Unknown team member:", personId);
+        return;
+      }
+
+      // Bump counter
+      lead.touches = Math.min(9, (+lead.touches || 0) + 1);
+      // Stamp date
+      lead.lastTouch = new Date().toISOString().slice(0, 10);
+      // Advance status
+      if (lead.status === "NOT STARTED") lead.status = "1ST TOUCH";
+
+      // Append touch entry to === TOUCHES === block inside notes
+      const parsed = parseLeadNotes(lead.notes || "");
+      parsed.touches = parsed.touches || [];
+      parsed.touches.push({
+        date: lead.lastTouch,
+        person: member.name,
+        channel: channel || "",
+        note: note || "",
+      });
+      lead.notes = serialiseLeadNotes(parsed);
       // No save — wait for Submit
+    },
+
+    // Back-compat shim — old "+ Touch" button defaulted to Abhimanyu
+    markTouch() {
+      this.addTouch("AS");
+    },
+
+    // Delete a touch entry by index (for undoing accidental clicks)
+    removeTouch(index) {
+      if (!this.selectedLead) return;
+      const lead = this.selectedLead;
+      const parsed = parseLeadNotes(lead.notes || "");
+      if (!parsed.touches || index < 0 || index >= parsed.touches.length) return;
+      parsed.touches.splice(index, 1);
+      lead.notes = serialiseLeadNotes(parsed);
+      // Decrement counter only if it's > 0
+      lead.touches = Math.max(0, (+lead.touches || 0) - 1);
     },
 
     setNextAction(daysFromToday) {
