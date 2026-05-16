@@ -285,6 +285,20 @@ function touchCountsFor(lead) {
   return counts;
 }
 
+// Fast check — does this lead have at least one enriched contact row?
+// Avoids a full parseLeadNotes() call for the 90%+ of leads with no contacts.
+function leadHasContacts(lead) {
+  const notes = lead && lead.notes;
+  if (!notes || typeof notes !== "string") return false;
+  if (!notes.includes("=== CONTACTS ===")) return false;
+  const m = notes.match(/=== CONTACTS ===\s*\n([\s\S]*?)(?=\n===|\n##|$)/);
+  if (!m) return false;
+  const body = m[1].trim();
+  if (!body || body.startsWith("NO_DATA")) return false;
+  // At least one row with 4+ pipe-separated parts (name|role|email|conf...)
+  return body.split("\n").some(line => line.split("|").length >= 4);
+}
+
 // Helper: format Indian phone for tel: link (strip spaces/dashes/parens/labels)
 function telLink(phone) {
   if (!phone) return null;
@@ -357,7 +371,7 @@ function crmApp() {
     saveTimer: null,
     sheet: "",
     sortKey: "score",
-    filters: { q: "", priority: "", tier: "", status: "", minScore: 2 },
+    filters: { q: "", priority: "", tier: "", status: "", minScore: 2, hasContacts: "" },
     statusOptions: STATUS_ORDER,
     pipelineStatuses: STATUS_ORDER,
     charts: {},
@@ -440,6 +454,11 @@ function crmApp() {
         if (f.tier && l.tier !== f.tier) return false;
         if (f.status && l.status !== f.status) return false;
         if (f.minScore && (l.score || 0) < f.minScore) return false;
+        if (f.hasContacts) {
+          const has = leadHasContacts(l);
+          if (f.hasContacts === "yes" && !has) return false;
+          if (f.hasContacts === "no" && has) return false;
+        }
         if (q) {
           const blob = [l.company, l.category, l.notes, l.contactPointer, l.contactTitle, l.agency, l.pitchAngle]
             .filter(Boolean).join(" ").toLowerCase();
@@ -460,7 +479,7 @@ function crmApp() {
     },
 
     resetFilters() {
-      this.filters = { q: "", priority: "", tier: "", status: "", minScore: 2 };
+      this.filters = { q: "", priority: "", tier: "", status: "", minScore: 2, hasContacts: "" };
     },
 
     leadsByStatus(status) {
