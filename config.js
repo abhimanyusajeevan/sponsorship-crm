@@ -7,4 +7,11 @@ window.CRM_CONFIG = {
   apiUrl: "https://script.google.com/macros/s/AKfycbzQ9BHjzRiHCsVGKCEasc5Ks4SE19UgpeC6UziwQTmfvyfmuf8XoEwI6RHzJ_r1uO6KYA/exec",
   apiToken: "YSGg8s7ghw8ysbywuy8wsy8whsxwhhebcywycebnwden",
   sheetName: "Cold Leads",       // tab inside your Google Sheet
+
+  // Used by the email-draft templates so you don't have to type your phone/handle into every draft.
+  driver: {
+    name: "Abhimanyu Sajeevan",
+    phone: "+91 [your phone]",       // <-- update this once and it auto-fills every draft
+    linkedin: "[your-handle]",       // <-- the bit after linkedin.com/in/
+  },
 };

@@ -390,11 +390,92 @@
         <span class="pill bg-purple-50 text-purple-700" x-text="'Draft: ' + selectedLead.draft"></span>
       </div>
 
-      <!-- CRM Notes -->
+      <!-- ===== CONTACTS (parsed from notes) ===== -->
       <div>
-        <label class="text-xs font-medium text-slate-500">CRM Notes / Next Step</label>
-        <textarea x-model="selectedLead.notes" @change="saveLead()" rows="4"
-                  class="w-full mt-1 px-3 py-2 text-sm rounded-md border border-slate-300"></textarea>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            Contacts <span x-text="'(' + parsedNotes.contacts.length + ')'" class="text-slate-400"></span>
+          </label>
+          <span class="text-[10px] text-slate-400">parsed from === CONTACTS === block in notes</span>
+        </div>
+        <div x-show="parsedNotes.contacts.length === 0" class="text-xs text-slate-400 italic px-2 py-3 bg-slate-50 rounded">
+          No contacts yet. Paste enriched contacts into the Notes box below as <code class="bg-white px-1">=== CONTACTS ===</code> followed by pipe-separated rows.
+        </div>
+        <div class="space-y-2">
+          <template x-for="(c, ci) in parsedNotes.contacts" :key="ci">
+            <div class="border border-slate-200 rounded-lg p-3 bg-white">
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-sm" x-text="c.name"></div>
+                  <div class="text-xs text-slate-500" x-text="c.role"></div>
+                </div>
+                <div class="flex gap-1 flex-shrink-0">
+                  <button @click="openDraft(c)" title="Auto-draft email using DRAFT-A/B/C/D/E template"
+                          class="px-2 py-1 text-xs bg-sky-600 text-white rounded hover:bg-sky-700">
+                    ✍ Draft email
+                  </button>
+                </div>
+              </div>
+
+              <!-- Contact actions: email / phone / linkedin -->
+              <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                <template x-if="c.email">
+                  <a :href="'mailto:' + c.email" class="text-sky-600 hover:underline flex items-center gap-1" :title="'Open mail to ' + c.email">
+                    <span>✉</span>
+                    <span x-text="c.email"></span>
+                    <span class="pill text-[9px]" :class="emailConfBadge(c.emailConf)" x-text="c.emailConf"></span>
+                  </a>
+                </template>
+                <template x-if="c.phoneOffice && telLink(c.phoneOffice)">
+                  <a :href="'tel:' + telLink(c.phoneOffice)" class="text-emerald-700 hover:underline flex items-center gap-1" title="Office / desk line">
+                    <span>☎</span><span x-text="c.phoneOffice"></span>
+                  </a>
+                </template>
+                <template x-if="c.phoneMobile && telLink(c.phoneMobile)">
+                  <a :href="'tel:' + telLink(c.phoneMobile)" class="text-emerald-700 font-medium hover:underline flex items-center gap-1" title="Mobile (click to call)">
+                    <span>📱</span><span x-text="c.phoneMobile"></span>
+                  </a>
+                </template>
+                <template x-if="c.linkedinUrl">
+                  <a :href="linkedinUrl(c.linkedinUrl)" target="_blank" rel="noopener" class="text-blue-700 hover:underline flex items-center gap-1" title="Open LinkedIn profile">
+                    <span>in</span><span>LinkedIn</span>
+                  </a>
+                </template>
+              </div>
+
+              <div x-show="c.note" class="mt-2 text-[11px] text-slate-600 italic" x-text="c.note"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ===== INTENT SIGNALS (parsed from notes) ===== -->
+      <div x-show="parsedNotes.signals.length > 0">
+        <label class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+          Intent Signals <span x-text="'(' + parsedNotes.signals.length + ')'" class="text-slate-400"></span>
+        </label>
+        <ul class="mt-1 space-y-1">
+          <template x-for="(s, si) in parsedNotes.signals" :key="si">
+            <li class="text-xs flex items-start gap-2 py-1.5 px-2 rounded border" :class="signalColor(s.heat)">
+              <span class="font-mono text-[10px] flex-shrink-0" x-text="s.date || '—'"></span>
+              <span class="font-bold text-[10px] flex-shrink-0" x-text="s.heat || ''"></span>
+              <span class="flex-1" x-text="s.text"></span>
+              <template x-if="s.url">
+                <a :href="s.url" target="_blank" rel="noopener" class="text-[10px] underline">source</a>
+              </template>
+            </li>
+          </template>
+        </ul>
+      </div>
+
+      <!-- CRM Notes — raw editable, includes contacts + signals + freeform -->
+      <div>
+        <label class="text-xs font-medium text-slate-500">
+          Raw notes (edit here to add/remove contacts or signals)
+        </label>
+        <textarea x-model="selectedLead.notes" @change="saveLead()" rows="6"
+                  placeholder="Paste enriched contacts as:&#10;=== CONTACTS ===&#10;Name | Role | email | verified | +91 office | +91 mobile | linkedin.com/in/... | one-line note&#10;&#10;## Notes:&#10;Your free-form notes here"
+                  class="w-full mt-1 px-3 py-2 text-xs font-mono rounded-md border border-slate-300"></textarea>
       </div>
 
       <!-- Footer save indicator -->
@@ -408,6 +489,98 @@
         <button @click="closeLead()" class="px-4 py-1.5 bg-slate-900 text-white text-sm rounded-md">Close</button>
       </div>
 
+    </div>
+    </template>
+  </div>
+</div>
+
+<!-- ============== DRAFT EMAIL MODAL ============== -->
+<div x-show="draftOpen" @click.self="closeDraft()" x-transition.opacity
+     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" style="display:none;">
+  <div class="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+       x-show="draftOpen" x-transition>
+    <template x-if="draftContact && selectedLead">
+    <div class="p-6 space-y-4">
+      <!-- Header -->
+      <div class="flex items-start justify-between">
+        <div>
+          <h3 class="text-lg font-bold">Draft email to <span x-text="draftContact.name"></span></h3>
+          <p class="text-xs text-slate-500">
+            <span x-text="selectedLead.company"></span> ·
+            <span x-text="draftContact.role"></span> ·
+            <span x-text="draftContact.email || '(no email on file)'"></span>
+          </p>
+        </div>
+        <button @click="closeDraft()" class="text-slate-400 hover:text-slate-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Template picker -->
+      <div>
+        <label class="text-xs font-medium text-slate-500">Template angle (auto-picked from lead's draft code; switch if you want)</label>
+        <div class="mt-1 grid grid-cols-5 gap-1">
+          <template x-for="(label, code) in draftTemplateLabels" :key="code">
+            <button @click="swapDraftTemplate(code)"
+                    :class="draftDraftCode === code ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                    class="px-2 py-1.5 text-[11px] rounded font-medium text-center leading-tight">
+              <div x-text="code.replace('DRAFT-', '')"></div>
+              <div class="text-[9px] opacity-75" x-text="label"></div>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Subject -->
+      <div>
+        <label class="text-xs font-medium text-slate-500">Subject</label>
+        <input type="text" x-model="draftSubject"
+               class="w-full mt-1 px-3 py-2 text-sm rounded-md border border-slate-300" />
+      </div>
+
+      <!-- Body -->
+      <div>
+        <label class="text-xs font-medium text-slate-500">
+          Body
+          <span class="ml-2 text-slate-400">(<span x-text="draftBody.length"></span> chars · edit before sending)</span>
+        </label>
+        <textarea x-model="draftBody" rows="14"
+                  class="w-full mt-1 px-3 py-2 text-sm font-sans rounded-md border border-slate-300 leading-relaxed"></textarea>
+      </div>
+
+      <!-- Personalisation hint -->
+      <div class="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded p-2">
+        <strong>Verify before sending:</strong> Replace any remaining
+        <code class="bg-white px-1">[your phone]</code> or
+        <code class="bg-white px-1">[your-handle]</code> placeholders (set them once in <code>config.js</code> under <code>driver.phone</code> and <code>driver.linkedin</code> to skip this step forever).
+        Also customise line 1 to reference something fresh — the contact's recent post, a recent role change, or a company milestone.
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-wrap items-center gap-2 pt-3 border-t">
+        <button @click="openInGmail()"
+                class="px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 flex items-center gap-1">
+          ✉ Open in Gmail
+        </button>
+        <a :href="'mailto:' + (draftContact && draftContact.email ? draftContact.email : '') + '?subject=' + encodeURIComponent(draftSubject) + '&body=' + encodeURIComponent(draftBody)"
+           class="px-4 py-2 bg-slate-200 text-slate-800 text-sm rounded-md hover:bg-slate-300">
+          Open in default mail
+        </a>
+        <button @click="copyDraftToClipboard()"
+                class="px-4 py-2 bg-slate-200 text-slate-800 text-sm rounded-md hover:bg-slate-300">
+          Copy
+        </button>
+        <div class="ml-auto flex gap-2">
+          <button @click="markDraftSent()" title="Increment touches + status → 1ST TOUCH + lastTouch = today"
+                  class="px-4 py-2 bg-emerald-600 text-white text-sm rounded-md hover:bg-emerald-700">
+            ✓ Mark as sent
+          </button>
+          <button @click="closeDraft()"
+                  class="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded-md hover:bg-slate-200">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
     </template>
   </div>

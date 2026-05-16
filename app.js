@@ -16,6 +16,243 @@ const STATUS_ORDER = [
   "NURTURE",
 ];
 
+// ============================================================
+// DRAFT TEMPLATES — used by the "Draft email" button per contact.
+// Tokens: {firstName} {lastName} {company} {category} {tier} {pitchAngle} {contactRole}
+// ============================================================
+const DRAFT_TEMPLATES = {
+  "DRAFT-A": {
+    label: "Marketing ROI / Reach",
+    subject: "30M views/event — INRC sponsorship for {company}",
+    body: `Hi {firstName},
+
+{pitchAngle}
+
+Our last INRC event hit 30M+ social views and 2M+ national TV viewers. The 2026-27 season has 6 rounds across India between July and December — Nashik, Indore, Chennai, Coimbatore, Coorg, and the Bengaluru K1000.
+
+I'm proposing a {tier} package for {company} for the full season. Could we grab 15 minutes on Tuesday or Thursday this week to walk through the activation?
+
+Happy to send a 1-page rate card ahead of the call.
+
+Thanks,
+{driverName}
+Driver, INRC 2026-27 · Garage Snap Racing
+IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
+  },
+  "DRAFT-B": {
+    label: "CSR / Schedule VII youth-sport",
+    subject: "Youth sport development — INRC 2026-27 partnership",
+    body: `Hi {firstName},
+
+I'm writing about a CSR partnership under Schedule VII (vii) — training to promote nationally recognised sport.
+
+My journey — Calicut to IIT Bombay to a national podium on debut — is the youth-sport development arc your CSR mandate was written for. The 2026-27 INRC season runs across 6 cities (Nashik to Bengaluru K1000), Jul-Dec 2026, with a 30M+ social and 2M+ TV footprint.
+
+{pitchAngle}
+
+Could we get 20 minutes this week to walk through a sport-development partnership? I'll send the CSR application template + driver bio ahead of the call.
+
+Thanks,
+{driverName}
+Driver, INRC 2026-27 · Garage Snap Racing
+IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
+  },
+  "DRAFT-C": {
+    label: "Kerala / NRI pride",
+    subject: "Calicut → national podium — INRC 2026-27 partnership",
+    body: `Hi {firstName},
+
+I'm Abhimanyu Sajeevan — the first national rally driver from Calicut. The INRC 2026-27 season opens July with 6 rounds across India, including strong audience reach in Kerala and the Gulf-Malayali diaspora via OnManorama editorial coverage and TV5 News.
+
+{pitchAngle}
+
+I'd love {company} to be part of this story. Could we get 15 minutes this week to walk through what a {tier} partnership could look like?
+
+Thanks,
+{driverName}
+Driver, INRC 2026-27 · Garage Snap Racing
+IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
+  },
+  "DRAFT-D": {
+    label: "IIT alumni solidarity",
+    subject: "Fellow IIT-B alum — INRC 2026-27 sponsorship ask",
+    body: `Hi {firstName},
+
+Writing as a fellow IIT Bombay Mech Eng '21 alum. I'm chasing the INRC national title in 2026-27 on tight budgets, and {company} is a name I'd love to have on the car.
+
+{pitchAngle}
+
+The season is 6 rounds across India, Jul-Dec 2026, with 30M+ social views and 2M+ TV per event. I'm proposing a {tier} package for the season.
+
+Could we grab 15 minutes this week? Happy to send a 1-page rate card ahead.
+
+Thanks,
+{driverName}
+Driver, INRC 2026-27 · Garage Snap Racing
+IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
+  },
+  "DRAFT-E": {
+    label: "Product validation / technical partnership",
+    subject: "Rally as your real-world R&D — INRC 2026-27",
+    body: `Hi {firstName},
+
+Every INRC round pushes products in {category} to their absolute limit — and a VW Polo #41 racing across 6 surfaces and 6 climates over six months gives you performance data no lab test can replicate.
+
+{pitchAngle}
+
+The 2026-27 season runs July-December. I'm proposing a {tier} package — IN-KIND product partnership combined with logo visibility on the car. Could we get 15 minutes this week to walk through what data and content we can deliver back to {company}?
+
+Thanks,
+{driverName}
+Driver, INRC 2026-27 · Garage Snap Racing
+IIT Bombay '21 · {driverPhone} · linkedin.com/in/{driverLinkedin}`,
+  },
+};
+
+// ============================================================
+// Notes-field parser
+// Recognises blocks demarcated by "=== CONTACTS ===" and "=== SIGNALS ==="
+// and any "## Notes:" tail as free-form.
+// ============================================================
+function parseLeadNotes(raw) {
+  const result = { contacts: [], signals: [], freeform: "" };
+  if (!raw || typeof raw !== "string") {
+    if (raw) result.freeform = String(raw);
+    return result;
+  }
+
+  // Split by section markers
+  const blocks = raw.split(/(?=^===\s*(?:CONTACTS|SIGNALS)\s*===\s*$|^##\s*Notes:?\s*$)/m);
+
+  for (const block of blocks) {
+    const m = block.match(/^===\s*CONTACTS\s*===\s*$/m);
+    if (m) {
+      const body = block.replace(/^===\s*CONTACTS\s*===\s*$/m, "").trim();
+      for (const line of body.split("\n")) {
+        const ln = line.trim();
+        if (!ln || ln.startsWith("===") || ln.startsWith("##")) break;
+        if (ln.startsWith("NO_DATA")) {
+          result.contacts.noData = ln;
+          continue;
+        }
+        const parts = ln.split("|").map(p => p.trim());
+        if (parts.length < 4) continue;
+        const [name, role, email, emailConf, phoneOffice, phoneMobile, linkedinUrl, note] = parts;
+        result.contacts.push({
+          name: name || "",
+          role: role || "",
+          email: email || "",
+          emailConf: (emailConf || "unknown").toLowerCase(),
+          phoneOffice: phoneOffice || "",
+          phoneMobile: phoneMobile || "",
+          linkedinUrl: linkedinUrl || "",
+          note: note || "",
+        });
+      }
+      continue;
+    }
+
+    if (/^===\s*SIGNALS\s*===\s*$/m.test(block)) {
+      const body = block.replace(/^===\s*SIGNALS\s*===\s*$/m, "").trim();
+      for (const line of body.split("\n")) {
+        const ln = line.trim();
+        if (!ln || ln.startsWith("===") || ln.startsWith("##")) break;
+        // Expected format: [YYYY-MM-DD] HEAT: text — source: url
+        const m1 = ln.match(/^\[(\d{4}-\d{2}-\d{2})\]\s*(HOT|WARM|COLD)[:\-]?\s*(.+?)(?:\s+(?:—|–|-|source:?)\s*(https?:\/\/\S+))?$/i);
+        if (m1) {
+          result.signals.push({
+            date: m1[1],
+            heat: m1[2].toUpperCase(),
+            text: m1[3].trim(),
+            url: m1[4] || "",
+          });
+        } else if (ln.length > 0) {
+          result.signals.push({ date: "", heat: "", text: ln, url: "" });
+        }
+      }
+      continue;
+    }
+
+    if (/^##\s*Notes:?\s*$/m.test(block)) {
+      result.freeform = block.replace(/^##\s*Notes:?\s*$/m, "").trim();
+      continue;
+    }
+
+    // Unclassified block before any marker — treat as free-form notes
+    if (!result.contacts.length && !result.signals.length && !result.freeform) {
+      result.freeform = block.trim();
+    }
+  }
+
+  return result;
+}
+
+// Serialise back to the structured notes format
+function serialiseLeadNotes({ contacts, signals, freeform }) {
+  const out = [];
+  if (contacts && contacts.length) {
+    out.push("=== CONTACTS ===");
+    for (const c of contacts) {
+      out.push([
+        c.name, c.role, c.email, c.emailConf,
+        c.phoneOffice, c.phoneMobile, c.linkedinUrl, c.note,
+      ].map(v => String(v ?? "").replace(/\|/g, "/").replace(/\n/g, " ")).join(" | "));
+    }
+    out.push("");
+  }
+  if (signals && signals.length) {
+    out.push("=== SIGNALS ===");
+    for (const s of signals) {
+      const parts = [];
+      if (s.date) parts.push(`[${s.date}]`);
+      if (s.heat) parts.push(`${s.heat}:`);
+      parts.push(s.text);
+      if (s.url) parts.push(`— source: ${s.url}`);
+      out.push(parts.join(" "));
+    }
+    out.push("");
+  }
+  if (freeform && freeform.trim()) {
+    out.push("## Notes:");
+    out.push(freeform.trim());
+  }
+  return out.join("\n").trim();
+}
+
+// Helper: format Indian phone for tel: link (strip spaces/dashes)
+function telLink(phone) {
+  if (!phone) return null;
+  const clean = phone.replace(/[\s\-()]/g, "");
+  if (!clean) return null;
+  return clean.startsWith("+") ? clean : "+91" + clean;
+}
+
+// Helper: format LinkedIn URL (ensure protocol)
+function linkedinUrl(url) {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return "https://" + url.replace(/^\/+/, "");
+}
+
+// Build a Gmail compose URL
+function gmailComposeUrl({ to, subject, body, cc, bcc }) {
+  const params = new URLSearchParams({
+    view: "cm",
+    fs: "1",
+    to: to || "",
+    su: subject || "",
+    body: body || "",
+  });
+  if (cc) params.set("cc", cc);
+  if (bcc) params.set("bcc", bcc);
+  return "https://mail.google.com/mail/?" + params.toString();
+}
+
+// Fill template tokens
+function fillTemplate(tpl, tokens) {
+  return String(tpl).replace(/\{(\w+)\}/g, (_, k) => tokens[k] !== undefined ? String(tokens[k]) : "");
+}
+
 function crmApp() {
   return {
     // ====== state ======
@@ -33,6 +270,16 @@ function crmApp() {
     statusOptions: STATUS_ORDER,
     pipelineStatuses: STATUS_ORDER,
     charts: {},
+
+    // Email-draft modal state
+    draftOpen: false,
+    draftContact: null,
+    draftSubject: "",
+    draftBody: "",
+    draftDraftCode: "DRAFT-A",
+    draftTemplateLabels: Object.fromEntries(
+      Object.entries(DRAFT_TEMPLATES).map(([k, v]) => [k, v.label])
+    ),
 
     get tabs() {
       return [
@@ -219,6 +466,106 @@ function crmApp() {
         type, data,
         options: { responsive: true, maintainAspectRatio: false, ...opts },
       });
+    },
+
+    // ====== parsed notes / contacts / signals ======
+    get parsedNotes() {
+      if (!this.selectedLead) return { contacts: [], signals: [], freeform: "" };
+      return parseLeadNotes(this.selectedLead.notes || "");
+    },
+
+    signalColor(heat) {
+      return {
+        HOT:  "bg-red-100 text-red-700 border-red-300",
+        WARM: "bg-amber-100 text-amber-700 border-amber-300",
+        COLD: "bg-slate-100 text-slate-600 border-slate-300",
+      }[heat] || "bg-slate-100 text-slate-600 border-slate-300";
+    },
+
+    emailConfBadge(conf) {
+      return {
+        verified: "bg-emerald-100 text-emerald-700",
+        guessed:  "bg-amber-100 text-amber-700",
+        unknown:  "bg-slate-100 text-slate-500",
+      }[(conf || "unknown").toLowerCase()] || "bg-slate-100 text-slate-500";
+    },
+
+    telLink(p) { return telLink(p); },
+    linkedinUrl(u) { return linkedinUrl(u); },
+
+    // ====== email draft modal ======
+    openDraft(contact) {
+      if (!this.selectedLead) return;
+      const lead = this.selectedLead;
+      this.draftContact = contact;
+      this.draftDraftCode = lead.draft || "DRAFT-A";
+      this.renderDraft();
+      this.draftOpen = true;
+    },
+
+    closeDraft() {
+      this.draftOpen = false;
+      this.draftContact = null;
+    },
+
+    renderDraft() {
+      const lead = this.selectedLead;
+      const contact = this.draftContact;
+      if (!lead || !contact) return;
+      const tpl = DRAFT_TEMPLATES[this.draftDraftCode] || DRAFT_TEMPLATES["DRAFT-A"];
+      const firstName = (contact.name || "").split(" ")[0] || "there";
+      const lastName  = (contact.name || "").split(" ").slice(1).join(" ");
+      const cfg = window.CRM_CONFIG || {};
+      const driver = cfg.driver || {};
+      const tokens = {
+        firstName,
+        lastName,
+        company: lead.company || "",
+        category: lead.category || "",
+        tier: lead.tier || "",
+        pitchAngle: lead.pitchAngle || "",
+        contactRole: contact.role || "",
+        driverName:     driver.name     || "Abhimanyu Sajeevan",
+        driverPhone:    driver.phone    || "+91 [your phone]",
+        driverLinkedin: driver.linkedin || "[your-handle]",
+      };
+      this.draftSubject = fillTemplate(tpl.subject, tokens);
+      this.draftBody    = fillTemplate(tpl.body, tokens);
+    },
+
+    swapDraftTemplate(code) {
+      this.draftDraftCode = code;
+      this.renderDraft();
+    },
+
+    openInGmail() {
+      const url = gmailComposeUrl({
+        to: (this.draftContact && this.draftContact.email) || "",
+        subject: this.draftSubject,
+        body: this.draftBody,
+      });
+      window.open(url, "_blank");
+    },
+
+    async copyDraftToClipboard() {
+      const text = `Subject: ${this.draftSubject}\n\n${this.draftBody}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        this.saveStatus = "saved"; // hijack the indicator briefly
+        setTimeout(() => { this.saveStatus = "idle"; }, 1500);
+      } catch (e) {
+        alert("Couldn't copy — please select and copy manually.");
+      }
+    },
+
+    markDraftSent() {
+      if (!this.selectedLead) return;
+      const lead = this.selectedLead;
+      if (lead.status === "NOT STARTED") lead.status = "1ST TOUCH";
+      lead.touches = Math.min(9, (+lead.touches || 0) + 1);
+      lead.lastTouch = new Date().toISOString().slice(0, 10);
+      this.saveLead();
+      this.closeDraft();
     },
 
     // ====== open / edit / save ======
