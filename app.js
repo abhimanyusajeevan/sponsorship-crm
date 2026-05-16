@@ -403,12 +403,45 @@ function crmApp() {
         .sort((a, b) => (b.score || 0) - (a.score || 0));
     },
 
+    // Today tab = next-action-due leads + leads with HOT/WARM signals in the last 7 days.
+    // Returns { lead, reasons, hasHot } items. The lead reference is the original
+    // object in this.leads so editing/submitting from the drawer mutates it in place.
     get todayLeads() {
-      const today = new Date().toISOString().slice(0, 10);
-      return this.leads
-        .filter(l => l.nextAction && l.nextAction.slice(0, 10) <= today
-                  && !["SIGNED", "DECLINED", "NURTURE"].includes(l.status))
-        .sort((a, b) => (b.score || 0) - (a.score || 0));
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const skipStatuses = ["SIGNED", "DECLINED", "NURTURE"];
+
+      const items = [];
+      for (const lead of this.leads) {
+        if (skipStatuses.includes(lead.status)) continue;
+        const reasons = [];
+
+        if (lead.nextAction && String(lead.nextAction).slice(0, 10) <= todayStr) {
+          reasons.push({ type: "nextAction", date: String(lead.nextAction).slice(0, 10) });
+        }
+
+        const parsed = parseLeadNotes(lead.notes || "");
+        const recentSignals = (parsed.signals || []).filter(s =>
+          s.date && s.heat && s.heat !== "COLD"
+                && s.date >= weekAgoStr && s.date <= todayStr
+        );
+        for (const sig of recentSignals) {
+          reasons.push({ type: "signal", signal: sig });
+        }
+
+        if (reasons.length > 0) {
+          items.push({
+            lead,
+            reasons,
+            hasHot: reasons.some(r => r.signal && r.signal.heat === "HOT"),
+          });
+        }
+      }
+
+      return items.sort((a, b) => {
+        if (a.hasHot !== b.hasHot) return a.hasHot ? -1 : 1;          // HOT signals first
+        return (b.lead.score || 0) - (a.lead.score || 0);              // then by score
+      });
     },
 
     // ====== dashboard KPIs ======
