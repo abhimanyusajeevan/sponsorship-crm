@@ -742,6 +742,46 @@ function crmApp() {
       return JSON.stringify(this.selectedLead) !== JSON.stringify(this.originalLead);
     },
 
+    // ====== validation ======
+    // Block Submit until these required fields are filled.
+    // Each rule returns { field, msg } for UI display.
+    get validationErrors() {
+      if (!this.selectedLead) return [];
+      const lead = this.selectedLead;
+      const errors = [];
+
+      // 1. Owner is always required
+      if (!lead.owner || !String(lead.owner).trim()) {
+        errors.push({ field: "owner", msg: "Owner is required — pick who's responsible" });
+      }
+
+      // 2. Once a lead has been touched, you must have a Next Action Date queued
+      //    (unless it's in a terminal status — done / declined / nurture)
+      const isTerminal = ["SIGNED", "DECLINED", "NURTURE"].includes(lead.status);
+      if ((+lead.touches || 0) > 0 && !lead.nextAction && !isTerminal) {
+        errors.push({ field: "nextAction", msg: "Set a Next Action Date — touched leads need a follow-up scheduled" });
+      }
+
+      // 3. If status is past "1ST TOUCH", touches must be > 0
+      const advancedStatuses = ["FOLLOW-UP", "IN CONVERSATION", "DECK SENT", "MEETING BOOKED", "VERBAL YES"];
+      if (advancedStatuses.includes(lead.status) && (+lead.touches || 0) === 0) {
+        errors.push({ field: "touches", msg: `Status "${lead.status}" needs at least 1 touch logged` });
+      }
+
+      return errors;
+    },
+
+    get canSubmit() {
+      return this.isDirty
+          && this.validationErrors.length === 0
+          && this.saveStatus !== "saving";
+    },
+
+    // Quick helper for the template — flag a field as invalid for red-ring styling
+    fieldInvalid(name) {
+      return this.validationErrors.some(e => e.field === name);
+    },
+
     recomputeScore() {
       if (!this.selectedLead) return;
       const a = +this.selectedLead.alignment || 0;
@@ -822,6 +862,12 @@ function crmApp() {
       if (!this.isDirty) {
         this.saveStatus = "saved";
         setTimeout(() => { this.saveStatus = "idle"; }, 1500);
+        return;
+      }
+      // Block on validation errors
+      if (this.validationErrors.length > 0) {
+        this.lastError = this.validationErrors.map(e => e.msg).join(" · ");
+        this.saveStatus = "error";
         return;
       }
       const cfg = window.CRM_CONFIG || {};

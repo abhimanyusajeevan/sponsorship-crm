@@ -453,19 +453,35 @@
                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
         </div>
         <div>
-          <label class="text-xs font-medium text-slate-500">Next Action Date</label>
+          <label class="text-xs font-medium text-slate-500">
+            Next Action Date
+            <span x-show="fieldInvalid('nextAction')" class="text-red-600">*</span>
+          </label>
           <input type="date" x-model="selectedLead.nextAction"
-                 class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
+                 :class="fieldInvalid('nextAction') ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-300'"
+                 class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border" />
         </div>
         <div>
-          <label class="text-xs font-medium text-slate-500">Touches Sent (0-9)</label>
+          <label class="text-xs font-medium text-slate-500">
+            Touches Sent (0-9)
+            <span x-show="fieldInvalid('touches')" class="text-red-600">*</span>
+          </label>
           <input type="number" min="0" max="9" x-model.number="selectedLead.touches"
-                 class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
+                 :class="fieldInvalid('touches') ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-300'"
+                 class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border" />
         </div>
         <div>
-          <label class="text-xs font-medium text-slate-500">Owner</label>
-          <input type="text" x-model="selectedLead.owner"
-                 class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border border-slate-300" />
+          <label class="text-xs font-medium text-slate-500">
+            Owner <span class="text-red-600">*</span>
+          </label>
+          <select x-model="selectedLead.owner"
+                  :class="fieldInvalid('owner') ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-300'"
+                  class="w-full mt-1 px-2 py-1.5 text-sm rounded-md border">
+            <option value="">— pick who's on it —</option>
+            <template x-for="member in teamMembers" :key="member.id">
+              <option :value="member.name" x-text="member.initials + ' — ' + member.name"></option>
+            </template>
+          </select>
         </div>
       </div>
 
@@ -627,39 +643,59 @@
 
     <!-- Sticky Submit footer — stays pinned at the bottom of the drawer -->
     <template x-if="selectedLead">
-    <div class="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-[0_-4px_8px_-4px_rgba(0,0,0,0.08)]">
-      <!-- Status badge -->
-      <div class="text-xs flex items-center gap-1">
-        <template x-if="!isDirty && saveStatus === 'idle'">
-          <span class="text-slate-400">● No changes</span>
-        </template>
-        <template x-if="isDirty && saveStatus === 'idle'">
-          <span class="text-amber-600 font-medium">● Unsaved changes</span>
-        </template>
-        <template x-if="saveStatus === 'saving'">
-          <span class="text-sky-600">● Saving…</span>
-        </template>
-        <template x-if="saveStatus === 'saved' && !isDirty">
-          <span class="text-emerald-600">✓ Saved to sheet</span>
-        </template>
-        <template x-if="saveStatus === 'error'">
-          <span class="text-red-600">⚠ Error: <span x-text="lastError"></span></span>
+    <div class="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-3 shadow-[0_-4px_8px_-4px_rgba(0,0,0,0.08)]">
+
+      <!-- Validation errors (shown when dirty + any rule fails) -->
+      <div x-show="isDirty && validationErrors.length > 0"
+           class="mb-2 p-2 rounded bg-red-50 border border-red-200 space-y-1">
+        <div class="text-[11px] font-semibold text-red-700 uppercase tracking-wide">
+          Required before submitting:
+        </div>
+        <template x-for="(err, ei) in validationErrors" :key="ei">
+          <div class="text-xs text-red-700 flex items-start gap-1">
+            <span>⚠</span><span x-text="err.msg"></span>
+          </div>
         </template>
       </div>
 
-      <div class="ml-auto flex items-center gap-2">
-        <button @click="closeLead()" class="px-4 py-2 text-sm rounded-md text-slate-700 hover:bg-slate-100">
-          Cancel
-        </button>
-        <button @click="submitLead()"
-                :disabled="!isDirty || saveStatus === 'saving'"
-                :class="(!isDirty || saveStatus === 'saving') ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'"
-                class="px-6 py-2 text-sm rounded-md font-semibold transition flex items-center gap-2">
-          <svg x-show="saveStatus === 'saving'" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          <span x-show="saveStatus === 'saving'">Submitting…</span>
-          <span x-show="saveStatus !== 'saving' && isDirty">Submit changes</span>
-          <span x-show="saveStatus !== 'saving' && !isDirty">Nothing to submit</span>
-        </button>
+      <div class="flex items-center gap-3">
+        <!-- Status badge -->
+        <div class="text-xs flex items-center gap-1">
+          <template x-if="!isDirty && saveStatus === 'idle'">
+            <span class="text-slate-400">● No changes</span>
+          </template>
+          <template x-if="isDirty && saveStatus === 'idle' && validationErrors.length === 0">
+            <span class="text-amber-600 font-medium">● Unsaved — ready to submit</span>
+          </template>
+          <template x-if="isDirty && validationErrors.length > 0">
+            <span class="text-red-600 font-medium">● <span x-text="validationErrors.length"></span> required field<span x-show="validationErrors.length > 1">s</span> missing</span>
+          </template>
+          <template x-if="saveStatus === 'saving'">
+            <span class="text-sky-600">● Saving…</span>
+          </template>
+          <template x-if="saveStatus === 'saved' && !isDirty">
+            <span class="text-emerald-600">✓ Saved to sheet</span>
+          </template>
+          <template x-if="saveStatus === 'error' && validationErrors.length === 0">
+            <span class="text-red-600">⚠ Error: <span x-text="lastError"></span></span>
+          </template>
+        </div>
+
+        <div class="ml-auto flex items-center gap-2">
+          <button @click="closeLead()" class="px-4 py-2 text-sm rounded-md text-slate-700 hover:bg-slate-100">
+            Cancel
+          </button>
+          <button @click="submitLead()"
+                  :disabled="!canSubmit"
+                  :class="!canSubmit ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'"
+                  class="px-6 py-2 text-sm rounded-md font-semibold transition flex items-center gap-2">
+            <svg x-show="saveStatus === 'saving'" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span x-show="saveStatus === 'saving'">Submitting…</span>
+            <span x-show="saveStatus !== 'saving' && isDirty && validationErrors.length === 0">Submit changes</span>
+            <span x-show="saveStatus !== 'saving' && isDirty && validationErrors.length > 0">Fix required fields</span>
+            <span x-show="saveStatus !== 'saving' && !isDirty">Nothing to submit</span>
+          </button>
+        </div>
       </div>
     </div>
     </template>
