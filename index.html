@@ -102,6 +102,18 @@
             </template>
           </div>
 
+          <!-- Last touched line -->
+          <template x-if="lastTouchInfo(item.lead)">
+            <div class="text-[11px] text-slate-500 mt-1">
+              Last:
+              <span class="font-semibold"
+                    :class="lastTouchInfo(item.lead).member ? '' : 'text-slate-700'"
+                    x-text="lastTouchInfo(item.lead).member ? lastTouchInfo(item.lead).member.initials : lastTouchInfo(item.lead).person"></span>
+              ·
+              <span x-text="relativeTime(lastTouchInfo(item.lead).daysAgo)"></span>
+            </div>
+          </template>
+
           <!-- WHY this lead is on the queue -->
           <div class="mt-2 space-y-1">
             <template x-for="(r, ri) in item.reasons" :key="ri">
@@ -166,6 +178,12 @@
                     </template>
                   </template>
                 </div>
+                <template x-if="lastTouchInfo(lead)">
+                  <div class="text-[10px] text-slate-500 mt-1 truncate">
+                    Last: <span class="font-semibold" x-text="lastTouchInfo(lead).member ? lastTouchInfo(lead).member.initials : lastTouchInfo(lead).person"></span>
+                    · <span x-text="relativeTime(lastTouchInfo(lead).daysAgo)"></span>
+                  </div>
+                </template>
               </div>
             </template>
             <div x-show="leadsByStatus(status).length > 50" class="text-center text-xs text-slate-400 py-2">
@@ -237,6 +255,8 @@
             <option value="priority">Priority ↑</option>
             <option value="company">Company A→Z</option>
             <option value="touches">Touches sent</option>
+            <option value="lastTouch">Last touch (newest first)</option>
+            <option value="lastTouchOld">Last touch (oldest first)</option>
             <option value="nextAction">Next action date</option>
           </select>
         </div>
@@ -256,6 +276,7 @@
               <th class="text-center px-3 py-2">Score</th>
               <th class="text-left px-3 py-2">Status</th>
               <th class="text-center px-3 py-2">Touches</th>
+              <th class="text-left px-3 py-2">Last Touch</th>
               <th class="text-left px-3 py-2">Next Action</th>
               <th class="text-left px-3 py-2 w-40">Notes</th>
             </tr>
@@ -286,6 +307,25 @@
                       </template>
                     </template>
                   </div>
+                </td>
+                <td class="px-3 py-2 text-xs">
+                  <template x-if="lastTouchInfo(lead)">
+                    <div class="flex items-center gap-1">
+                      <template x-if="lastTouchInfo(lead).member">
+                        <span class="pill text-[9px]" :class="memberColorClasses(lastTouchInfo(lead).member, 'pill')"
+                              :title="lastTouchInfo(lead).member.name + ' on ' + lastTouchInfo(lead).date">
+                          <span class="font-bold" x-text="lastTouchInfo(lead).member.initials"></span>
+                        </span>
+                      </template>
+                      <template x-if="!lastTouchInfo(lead).member">
+                        <span class="text-[10px] text-slate-500" x-text="lastTouchInfo(lead).person"></span>
+                      </template>
+                      <span class="text-slate-500" x-text="relativeTime(lastTouchInfo(lead).daysAgo)"></span>
+                    </div>
+                  </template>
+                  <template x-if="!lastTouchInfo(lead)">
+                    <span class="text-slate-300">—</span>
+                  </template>
                 </td>
                 <td class="px-3 py-2 text-xs" x-text="formatDate(lead.nextAction)"></td>
                 <td class="px-3 py-2 text-xs text-slate-600 truncate max-w-xs" x-text="lead.notes"></td>
@@ -352,8 +392,33 @@
           <div class="text-xs text-slate-500">#<span x-text="selectedLead.id"></span> · <span x-text="selectedLead.category"></span></div>
           <h2 class="text-2xl font-bold" x-text="selectedLead.company"></h2>
           <p class="text-sm text-slate-600" x-text="selectedLead.hq + ' · ' + selectedLead.contactTitle"></p>
+
+          <!-- Last touched line — surfaces most recent toucher + recency -->
+          <template x-if="lastTouchInfo(selectedLead)">
+            <div class="mt-1.5 flex items-center gap-1.5 text-xs">
+              <span class="text-slate-500">Last touched by</span>
+              <template x-if="lastTouchInfo(selectedLead).member">
+                <span class="pill text-[10px]" :class="memberColorClasses(lastTouchInfo(selectedLead).member, 'pill')">
+                  <span class="font-bold" x-text="lastTouchInfo(selectedLead).member.initials"></span>
+                  <span x-text="lastTouchInfo(selectedLead).member.name"></span>
+                </span>
+              </template>
+              <template x-if="!lastTouchInfo(selectedLead).member">
+                <span class="pill text-[10px] bg-slate-100 text-slate-700" x-text="lastTouchInfo(selectedLead).person"></span>
+              </template>
+              <span class="text-slate-500" x-text="relativeTime(lastTouchInfo(selectedLead).daysAgo) + ' (' + lastTouchInfo(selectedLead).date + ')'"></span>
+              <template x-if="lastTouchInfo(selectedLead).channel">
+                <span class="text-[10px] px-1.5 rounded bg-slate-100 text-slate-600" x-text="'via ' + lastTouchInfo(selectedLead).channel"></span>
+              </template>
+            </div>
+          </template>
+          <template x-if="!lastTouchInfo(selectedLead)">
+            <div class="mt-1.5 text-xs text-slate-400 italic">
+              Never touched — start with +AS / +VS / +MJ below
+            </div>
+          </template>
         </div>
-        <button @click="closeLead()" class="text-slate-400 hover:text-slate-700">
+        <button @click="closeLead()" class="text-slate-400 hover:text-slate-700 flex-shrink-0">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>

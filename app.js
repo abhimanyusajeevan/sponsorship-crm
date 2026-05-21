@@ -299,6 +299,44 @@ function leadHasContacts(lead) {
   return body.split("\n").some(line => line.split("|").length >= 4);
 }
 
+// Last touch info — { date, person, member, daysAgo, channel, note } or null.
+// Reads the === TOUCHES === block and returns the most recent entry.
+function lastTouchInfo(lead) {
+  const notes = lead && lead.notes;
+  if (!notes || typeof notes !== "string") return null;
+  if (!notes.includes("=== TOUCHES ===")) return null;
+  const parsed = parseLeadNotes(notes);
+  const touches = parsed.touches || [];
+  if (!touches.length) return null;
+  const sorted = [...touches].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const last = sorted[0];
+  const today = new Date();
+  const tdate = last.date ? new Date(last.date) : null;
+  let daysAgo = null;
+  if (tdate && !isNaN(tdate)) {
+    daysAgo = Math.floor((today.setHours(0,0,0,0) - tdate.setHours(0,0,0,0)) / 86400000);
+  }
+  return {
+    date: last.date || "",
+    person: last.person || "",
+    member: memberByName(last.person),
+    daysAgo,
+    channel: last.channel || "",
+    note: last.note || "",
+  };
+}
+
+// Human-readable relative time
+function relativeTime(daysAgo) {
+  if (daysAgo === null || daysAgo === undefined) return "";
+  if (daysAgo < 0) return "future";   // shouldn't happen normally
+  if (daysAgo === 0) return "today";
+  if (daysAgo === 1) return "yesterday";
+  if (daysAgo < 14) return daysAgo + "d ago";
+  if (daysAgo < 60) return Math.floor(daysAgo / 7) + "w ago";
+  return Math.floor(daysAgo / 30) + "mo ago";
+}
+
 // Helper: format Indian phone for tel: link (strip spaces/dashes/parens/labels)
 function telLink(phone) {
   if (!phone) return null;
@@ -473,6 +511,16 @@ function crmApp() {
         if (key === "company")    return (a.company || "").localeCompare(b.company || "");
         if (key === "touches")    return (b.touches || 0) - (a.touches || 0);
         if (key === "nextAction") return (a.nextAction || "9999").localeCompare(b.nextAction || "9999");
+        if (key === "lastTouch") {
+          const da = (lastTouchInfo(a) || {}).date || "0000";
+          const db = (lastTouchInfo(b) || {}).date || "0000";
+          return db.localeCompare(da);                  // newest first
+        }
+        if (key === "lastTouchOld") {
+          const da = (lastTouchInfo(a) || {}).date || "9999";
+          const db = (lastTouchInfo(b) || {}).date || "9999";
+          return da.localeCompare(db);                  // oldest first
+        }
         return 0;
       });
       return rows;
@@ -796,6 +844,8 @@ function crmApp() {
     memberByName(name) { return memberByName(name); },
     memberById(id) { return memberById(id); },
     touchCountsFor(lead) { return touchCountsFor(lead); },
+    lastTouchInfo(lead) { return lastTouchInfo(lead); },
+    relativeTime(d) { return relativeTime(d); },
 
     // Log a touch by a specific team member.
     // - bumps touches counter
